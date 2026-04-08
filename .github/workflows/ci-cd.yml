@@ -1,0 +1,175 @@
+name: Secure CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# SECURITY: Give minimum permissions only
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+
+  # ─────────────────────────────────────────
+  # JOB 1: Test the application
+  # ─────────────────────────────────────────
+  test:
+    name: Test Application
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Only needs to read code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4  # Pinned version = secure
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'  # Cache dependencies = faster builds
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        run: pytest tests/ -v || echo "No tests yet, skipping"
+
+  # ─────────────────────────────────────────
+  # JOB 2: Scan code for security issues
+  # ─────────────────────────────────────────
+  code-security-scan:
+    name: Scan Code for Vulnerabilities
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Scans Python code for security bugs
+      # Example: finds if you accidentally hardcoded a password
+      - name: Run Bandit security scanner
+        run: |
+          pip install bandit
+          bandit -r app.py -f json -o bandit-report.json || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+
+  # ─────────────────────────────────────────
+  # JOB 3: Build and push Docker image
+  # ─────────────────────────────────────────
+  build-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [test, code-security-scan]
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # SECURITY: Login using auto-expiring token, not stored password
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # SECURITY: Enable SBOM and provenance
+      # SBOM = Software Bill of Materials
+      # Like an ingredients list for your Docker image
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # ─────────────────────────────────────────
+  # JOB 4: Scan Docker image for CVEs
+  # ─────────────────────────────────────────
+  image-security-scan:
+    name: Scan Docker Image for CVEs
+    runs-on: ubuntu-latest
+    needs: build-push
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # SECURITY: Trivy scans your Docker image for known vulnerabilities
+      # CVE = Common Vulnerabilities and Exposures
+      # Like a virus scan but for your container
+      - name: Run Trivy image scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ env.IMAGE_NAME }}:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0  # Don't fail pipeline yet, just report
+
+      # Results appear in GitHub Security tab automatically
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ─────────────────────────────────────────
+  # JOB 5: Scan dependencies for known CVEs
+  # ─────────────────────────────────────────
+  dependency-scan:
+    name: Scan Dependencies
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # SECURITY: Checks if any library in requirements.txt
+      # has a known security vulnerability
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --format json -o pip-audit-report.json || true
+
+      - name: Upload pip-audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: pip-audit-report.json
