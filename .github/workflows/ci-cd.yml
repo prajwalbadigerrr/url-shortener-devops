@@ -89,7 +89,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # SECURITY: Login using auto-expiring token, not stored password
+      # SECURITY: Setup buildx with docker-container driver
+      # This driver supports SBOM and provenance attestations
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -97,9 +103,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # SECURITY: Enable SBOM and provenance
-      # SBOM = Software Bill of Materials
-      # Like an ingredients list for your Docker image
       - name: Build and push image
         id: build
         uses: docker/build-push-action@v5
