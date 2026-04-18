@@ -13,3 +13,5 @@ terraform/crash.log
 # SECURITY: Never commit these — they contain sensitive infrastructure details
 *.tfvars
 *.tfvars.json
+minikube.exe
+*.exe
