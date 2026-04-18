@@ -1,17 +1,17 @@
 from flask import Flask, redirect, request, jsonify
 from prometheus_flask_exporter import PrometheusMetrics
 import hashlib
+import os
 
 app = Flask(__name__)
-
-# This adds /metrics endpoint automatically
-# Prometheus scrapes this every 15 seconds
 metrics = PrometheusMetrics(app)
-
-# Custom metrics — these show up in Grafana
 metrics.info('app_info', 'URL Shortener Info', version='2.0', author='Prajwal')
 
 store = {}
+
+# SECURITY: Get secret key from environment variable
+# In production this comes from Vault, not hardcoded
+APP_SECRET_KEY = os.environ.get('APP_SECRET_KEY', 'default-dev-key')
 
 @app.route('/shorten', methods=['POST'])
 def shorten():
@@ -35,7 +35,8 @@ def health():
         'status': 'ok',
         'total_urls': len(store),
         'version': '2.0',
-        'author': 'Prajwal'
+        'author': 'Prajwal',
+        'secrets_source': 'vault' if os.environ.get('APP_SECRET_KEY') else 'default'
     })
 
 if __name__ == '__main__':

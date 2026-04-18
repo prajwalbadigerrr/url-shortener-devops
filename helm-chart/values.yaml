@@ -1,31 +1,35 @@
-# values.yaml
-# All configurable values for our app
-# Change these without touching the actual Kubernetes configs
-
-replicaCount: 2  # Run 2 copies of our app for high availability
+replicaCount: 2
 
 image:
   repository: ghcr.io/prajwalbadigerrr/url-shortener-devops
   tag: latest
-  pullPolicy: Always  # ← This forces fresh pull every time
+  pullPolicy: Always
 
 service:
-  type: NodePort   # Exposes app outside the cluster
+  type: NodePort
   port: 5000
+
+# SECURITY: Secrets injected as environment variables from Kubernetes secret
+env:
+  - name: APP_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: vault-token
+        key: token
 
 resources:
   limits:
-    cpu: 500m       # Max half a CPU core
-    memory: 128Mi   # Max 128MB RAM
+    cpu: 500m
+    memory: 128Mi
   requests:
-    cpu: 100m       # Guaranteed 10% of a CPU core
-    memory: 64Mi    # Guaranteed 64MB RAM
+    cpu: 100m
+    memory: 64Mi
 
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 5
-  targetCPUUtilizationPercentage: 70  # Scale up if CPU > 70%
+  targetCPUUtilizationPercentage: 70
 
 health:
   path: /health
