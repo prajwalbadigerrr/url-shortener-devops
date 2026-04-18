@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: url-shortener
+  namespace: argocd
+spec:
+  project: default
+
+  # WHERE to get the code from
+  source:
+    repoURL: https://github.com/prajwalbadigerrr/url-shortener-devops
+    targetRevision: main
+    path: helm-chart
+
+  # WHERE to deploy it
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  # HOW to deploy — automatically, no manual clicks
+  syncPolicy:
+    automated:
+      prune: true       # Remove old resources automatically
+      selfHeal: true    # If someone manually changes something, auto-revert
+    syncOptions:
+      - CreateNamespace=true

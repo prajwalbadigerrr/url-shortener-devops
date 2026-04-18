@@ -22,7 +22,12 @@ def redirect_url(short_id):
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'total_urls': len(store)})
+    return jsonify({
+        'status': 'ok', 
+        'total_urls': len(store), 
+        'version': '2.0',
+        'author': 'Prajwal'
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
