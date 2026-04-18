@@ -7,7 +7,7 @@ replicaCount: 2  # Run 2 copies of our app for high availability
 image:
   repository: ghcr.io/prajwalbadigerrr/url-shortener-devops
   tag: latest
-  pullPolicy: Always
+  pullPolicy: Always  # ← This forces fresh pull every time
 
 service:
   type: NodePort   # Exposes app outside the cluster
