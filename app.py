@@ -1,7 +1,16 @@
 from flask import Flask, redirect, request, jsonify
+from prometheus_flask_exporter import PrometheusMetrics
 import hashlib
 
 app = Flask(__name__)
+
+# This adds /metrics endpoint automatically
+# Prometheus scrapes this every 15 seconds
+metrics = PrometheusMetrics(app)
+
+# Custom metrics — these show up in Grafana
+metrics.info('app_info', 'URL Shortener Info', version='2.0', author='Prajwal')
+
 store = {}
 
 @app.route('/shorten', methods=['POST'])
@@ -23,8 +32,8 @@ def redirect_url(short_id):
 @app.route('/health')
 def health():
     return jsonify({
-        'status': 'ok', 
-        'total_urls': len(store), 
+        'status': 'ok',
+        'total_urls': len(store),
         'version': '2.0',
         'author': 'Prajwal'
     })
