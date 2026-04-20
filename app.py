@@ -1,9 +1,10 @@
 from flask import Flask, redirect, request, jsonify
 from prometheus_flask_exporter import PrometheusMetrics
-import hashlib
-import os
+from flask_cors import CORS
+import hashlib, os
 
 app = Flask(__name__)
+CORS(app)  # ← allows frontend to talk to backend
 metrics = PrometheusMetrics(app)
 metrics.info('app_info', 'URL Shortener Info', version='2.0', author='Prajwal')
 

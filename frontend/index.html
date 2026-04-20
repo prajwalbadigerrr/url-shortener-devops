@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNIP — URL Shortener</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: rgba(255,255,255,0.08);
+    --accent: #00ff88;
+    --accent2: #7c3aed;
+    --accent3: #ff4d6d;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glowing orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.15;
+  }
+  .orb-1 { width: 600px; height: 600px; background: var(--accent2); top: -200px; right: -200px; animation: drift1 20s ease-in-out infinite; }
+  .orb-2 { width: 400px; height: 400px; background: var(--accent); bottom: -100px; left: -100px; animation: drift2 15s ease-in-out infinite; }
+  .orb-3 { width: 300px; height: 300px; background: var(--accent3); top: 50%; left: 50%; animation: drift3 25s ease-in-out infinite; }
+
+  @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,50px)} }
+  @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(50px,-50px)} }
+  @keyframes drift3 { 0%,100%{transform:translate(-50%,-50%)} 50%{transform:translate(-45%,-55%)} }
+
+  /* Layout */
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Nav */
+  nav {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 48px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 20px var(--accent);
+  }
+
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+  }
+
+  .nav-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  .nav-badge span { color: var(--accent); }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 80px 24px 60px;
+  }
+
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid rgba(0,255,136,0.2);
+    background: rgba(0,255,136,0.05);
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin-bottom: 32px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .hero-tag::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  h1 {
+    font-size: clamp(48px, 8vw, 80px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -3px;
+    margin-bottom: 20px;
+  }
+
+  h1 .accent { color: var(--accent); }
+  h1 .dim { color: var(--muted); }
+
+  .hero-sub {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 56px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Main input card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 16px;
+    transition: border-color 0.3s;
+  }
+
+  .card:hover { border-color: rgba(255,255,255,0.15); }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .card:focus-within::before { opacity: 1; }
+
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+
+  .url-input::placeholder { color: var(--muted); }
+
+  .url-input:focus {
+    border-color: rgba(0,255,136,0.4);
+    box-shadow: 0 0 0 3px rgba(0,255,136,0.08);
+  }
+
+  .btn-shorten {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    padding: 16px 28px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shorten::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .btn-shorten:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(0,255,136,0.3); }
+  .btn-shorten:hover::after { opacity: 0.1; }
+  .btn-shorten:active { transform: translateY(0); }
+  .btn-shorten:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 20px;
+    padding: 24px 32px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+    margin-bottom: 16px;
+  }
+
+  .result-card.visible { display: flex; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-left { flex: 1; min-width: 0; }
+  .result-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+  }
+
+  .result-url {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .btn-copy {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-copy.copied { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.08); }
+
+  /* Error */
+  .error-msg {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent3);
+    padding: 12px 20px;
+    background: rgba(255,77,109,0.08);
+    border: 1px solid rgba(255,77,109,0.2);
+    border-radius: 10px;
+    display: none;
+    margin-bottom: 16px;
+  }
+
+  .error-msg.visible { display: block; animation: slideUp 0.3s ease; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 40px 0;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: default;
+  }
+
+  .stat-card:hover {
+    border-color: rgba(255,255,255,0.15);
+    transform: translateY(-2px);
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+  }
+
+  .stat-value.green { color: var(--accent); }
+  .stat-value.purple { color: #a78bfa; }
+  .stat-value.red { color: var(--accent3); }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* History */
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: all 0.2s;
+    animation: slideUp 0.3s ease;
+  }
+
+  .history-item:hover { border-color: rgba(255,255,255,0.12); background: var(--surface2); }
+
+  .history-short {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .history-original {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+  }
+
+  .history-copy {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .history-copy:hover { color: var(--accent); }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+  }
+
+  /* Health badge */
+  .health-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    margin-bottom: 40px;
+    transition: all 0.3s;
+  }
+
+  .health-badge.online { border-color: rgba(0,255,136,0.3); color: var(--accent); background: rgba(0,255,136,0.05); }
+  .health-badge.offline { border-color: rgba(255,77,109,0.3); color: var(--accent3); }
+
+  .health-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .health-badge.online .health-dot { animation: pulse 2s infinite; }
+
+  /* Footer */
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 40px 24px 60px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  .footer-stack {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .stack-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    background: var(--surface);
+    transition: all 0.2s;
+  }
+
+  .stack-tag:hover { border-color: var(--accent); color: var(--accent); }
+
+  .footer-credit {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .footer-credit span { color: var(--accent); }
+
+  /* Loading spinner */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn-shorten.loading .spinner { display: block; }
+  .btn-shorten.loading .btn-text { display: none; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    nav { padding: 20px 24px; }
+    .input-row { flex-direction: column; }
+    .btn-shorten { width: 100%; justify-content: center; display: flex; align-items: center; gap: 8px; }
+    .stats-row { grid-template-columns: 1fr; }
+    h1 { letter-spacing: -2px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    SNIP
+  </div>
+  <div class="nav-badge">DevOps Project by <span>Prajwal</span></div>
+</nav>
+
+<!-- Main content -->
+<div class="container">
+  <div class="hero">
+    <div class="hero-tag">Production Ready</div>
+    <h1>
+      Make your<br>
+      <span class="accent">links</span> <span class="dim">shorter.</span>
+    </h1>
+    <p class="hero-sub">// Kubernetes · ArgoCD · Prometheus · Vault</p>
+
+    <!-- Health status -->
+    <div id="healthBadge" class="health-badge">
+      <div class="health-dot"></div>
+      <span id="healthText">Checking backend...</span>
+    </div>
+  </div>
+
+  <!-- Shorten card -->
+  <div class="card">
+    <div class="input-row">
+      <input
+        type="url"
+        class="url-input"
+        id="urlInput"
+        placeholder="https://your-very-long-url.com/goes/here"
+        autocomplete="off"
+      />
+      <button class="btn-shorten" id="shortenBtn" onclick="shortenUrl()">
+        <div class="spinner"></div>
+        <span class="btn-text">Shorten →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-left">
+      <div class="result-label">✦ Your short URL</div>
+      <div class="result-url" id="resultUrl"></div>
+    </div>
+    <button class="btn-copy" id="copyBtn" onclick="copyUrl()">Copy</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value green" id="totalUrls">—</div>
+      <div class="stat-label">URLs Shortened</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value purple" id="podCount">2</div>
+      <div class="stat-label">K8s Pods</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value red" id="uptime">99.9%</div>
+      <div class="stat-label">Uptime</div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="section-title">Recent Links</div>
+  <div class="history-list" id="historyList">
+    <div class="empty-state" id="emptyState">
+      No links shortened yet. Paste a URL above to get started.
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-stack">
+    <span class="stack-tag">Python Flask</span>
+    <span class="stack-tag">Docker</span>
+    <span class="stack-tag">Kubernetes</span>
+    <span class="stack-tag">Helm</span>
+    <span class="stack-tag">ArgoCD</span>
+    <span class="stack-tag">GitHub Actions</span>
+    <span class="stack-tag">Prometheus</span>
+    <span class="stack-tag">Grafana</span>
+    <span class="stack-tag">HashiCorp Vault</span>
+    <span class="stack-tag">Terraform</span>
+  </div>
+  <div class="footer-credit">Built by <span>Prajwal Badigerra</span> — Production Grade DevOps Project</div>
+</footer>
+
+<script>
+  // Config — change this to your backend URL
+  const API_BASE = 'http://localhost:5000';
+
+  let history = JSON.parse(localStorage.getItem('snip_history') || '[]');
+
+  // Check backend health on load
+  async function checkHealth() {
+    const badge = document.getElementById('healthBadge');
+    const text = document.getElementById('healthText');
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      const data = await res.json();
+      badge.className = 'health-badge online';
+      text.textContent = `Backend online · v${data.version || '1.0'}`;
+      document.getElementById('totalUrls').textContent = data.total_urls ?? 0;
+    } catch {
+      badge.className = 'health-badge offline';
+      text.textContent = 'Backend offline — start your Flask app';
+    }
+  }
+
+  // Shorten URL
+  async function shortenUrl() {
+    const input = document.getElementById('urlInput');
+    const btn = document.getElementById('shortenBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const resultCard = document.getElementById('resultCard');
+
+    const url = input.value.trim();
+
+    // Hide previous results
+    errorMsg.className = 'error-msg';
+    resultCard.className = 'result-card';
+
+    // Validate
+    if (!url) {
+      showError('Please enter a URL first!');
+      return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      showError('URL must start with http:// or https://');
+      return;
+    }
+
+    // Loading state
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/shorten`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      const data = await res.json();
+
+      if (data.short_url) {
+        showResult(data.short_url, url);
+        addToHistory(data.short_url, url);
+        await checkHealth(); // refresh stats
+        input.value = '';
+      } else {
+        showError(data.error || 'Something went wrong');
+      }
+
+    } catch (err) {
+      showError('Cannot reach backend. Make sure your Flask app is running on port 5000.');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
+
+  function showResult(shortUrl, original) {
+    const card = document.getElementById('resultCard');
+    document.getElementById('resultUrl').textContent = shortUrl;
+    card.className = 'result-card visible';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = '⚠ ' + msg;
+    el.className = 'error-msg visible';
+  }
+
+  function copyUrl() {
+    const url = document.getElementById('resultUrl').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  function addToHistory(shortUrl, original) {
+    history.unshift({ shortUrl, original, time: Date.now() });
+    if (history.length > 10) history = history.slice(0, 10);
+    localStorage.setItem('snip_history', JSON.stringify(history));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('emptyState');
+
+    if (history.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+
+    empty.style.display = 'none';
+    const items = history.map((item, i) => `
+      <div class="history-item" style="animation-delay:${i * 0.05}s">
+        <span class="history-short">${item.shortUrl.split('/').pop()}</span>
+        <span class="history-original">${item.original}</span>
+        <button class="history-copy" onclick="navigator.clipboard.writeText('${item.shortUrl}')" title="Copy">⎘</button>
+      </div>
+    `).join('');
+
+    list.innerHTML = items + `<div id="emptyState" style="display:none"></div>`;
+  }
+
+  // Enter key shortcut
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') shortenUrl();
+  });
+
+  // Init
+  checkHealth();
+  renderHistory();
+
+  // Refresh health every 30 seconds
+  setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
