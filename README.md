@@ -17,6 +17,10 @@ Developer → GitHub → GitHub Actions CI/CD → GHCR
                               └── HashiCorp Vault (Secrets)
 ```
 
+## Screenshots
+
+![SNIP Frontend](screenshots/screenshot.png)
+
 ## Tech Stack
 
 | Category | Technology |
